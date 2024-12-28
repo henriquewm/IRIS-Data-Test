@@ -1,3 +1,4 @@
+# %%
 # Import necessary libraries
 import pandas as pd
 from sklearn.datasets import load_iris
@@ -27,3 +28,4 @@ print(f"Model Accuracy: {accuracy}")
 
 # Save the model
 joblib.dump(clf, 'iris_model.pkl')
+# %%
