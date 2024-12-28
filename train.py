@@ -6,6 +6,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 import joblib
+from azureml.core import Workspace, Model
 
 # Load the Iris dataset
 iris = load_iris()
@@ -28,4 +29,8 @@ print(f"Model Accuracy: {accuracy}")
 
 # Save the model
 joblib.dump(clf, 'iris_model.pkl')
+# %%
+#Register the model in Azure ML
+ws = Workspace.from_config()
+model = Model.register(workspace=ws, model_path="iris_model.pkl", model_name="iris_model")
 # %%
