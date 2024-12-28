@@ -7,6 +7,9 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 import joblib
 from azureml.core import Workspace, Model
+from azureml.core.webservice import AciWebservice
+from azureml.core.model import InferenceConfig
+from azureml.core import Environment
 
 # Load the Iris dataset
 iris = load_iris()
@@ -33,4 +36,11 @@ joblib.dump(clf, 'iris_model.pkl')
 #Register the model in Azure ML
 ws = Workspace.from_config()
 model = Model.register(workspace=ws, model_path="iris_model.pkl", model_name="iris_model")
+# %%
+#Deploy model
+inference_config = InferenceConfig(entry_script='score.py', environment=Environment.from_conda_specification(name='iris-env', file_path='environment.yml'))
+aci_config = AciWebservice.deploy_configuration(cpu_cores=1, memory_gb=1)
+
+service = Model.deploy(workspace=ws, name='iris-service', models=[model], inference_config=inference_config, deployment_config=aci_config)
+service.wait_for_deployment(show_output=True)
 # %%
