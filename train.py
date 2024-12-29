@@ -7,7 +7,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 import joblib
 from azureml.core import Workspace, Model
-from azureml.core.webservice import AciWebservice
+from azureml.core.webservice import AciWebservice, Webservice
 from azureml.core.model import InferenceConfig
 from azureml.core import Environment
 
@@ -34,7 +34,7 @@ print(f"Model Accuracy: {accuracy}")
 joblib.dump(clf, 'iris_model.pkl')
 # %%
 #Register the model in Azure ML
-ws = Workspace.from_config()
+ws = Workspace.from_config(path = "./config.json")
 model = Model.register(workspace=ws, model_path="iris_model.pkl", model_name="iris_model")
 # %%
 #Deploy model
@@ -43,4 +43,21 @@ aci_config = AciWebservice.deploy_configuration(cpu_cores=1, memory_gb=1)
 
 service = Model.deploy(workspace=ws, name='iris-service', models=[model], inference_config=inference_config, deployment_config=aci_config)
 service.wait_for_deployment(show_output=True)
+
+
+# %%
+#Delete service
+from azureml.core import Workspace
+from azureml.core.webservice import Webservice
+
+# Connect to your Azure ML workspace
+ws = Workspace.from_config()
+
+# Get the existing service by name
+service_name = 'iris-service'
+service = Webservice(name=service_name, workspace=ws)
+
+# Delete the service
+service.delete()
+print(f"Service {service_name} deleted successfully.")
 # %%
