@@ -1,7 +1,7 @@
 # %%
 import joblib
-from azureml.core.model import Model
 from flask import Flask, request, jsonify
+from azure.ai.ml.entities import Model
 
 app = Flask(__name__)
 
@@ -11,7 +11,7 @@ def init():
     model = joblib.load(model_path)
 
 @app.route('/predict', methods=['POST'])
-def predict():
+def run():
     data = request.json['data']
     prediction = model.predict(data)
     return jsonify({'prediction': prediction.tolist()})

@@ -1,15 +1,21 @@
 # %%
 # Import necessary libraries
 import pandas as pd
+import datetime
 from sklearn.datasets import load_iris
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 import joblib
-from azureml.core import Workspace, Model
-from azureml.core.webservice import AciWebservice, Webservice
-from azureml.core.model import InferenceConfig
-from azureml.core import Environment
+from azure.ai.ml import MLClient
+from azure.ai.ml.entities import (
+    ManagedOnlineEndpoint,
+    ManagedOnlineDeployment,
+    Model,
+    Environment,
+    CodeConfiguration
+)
+from azure.identity import DefaultAzureCredential
 
 # Load the Iris dataset
 iris = load_iris()
@@ -33,31 +39,87 @@ print(f"Model Accuracy: {accuracy}")
 # Save the model
 joblib.dump(clf, 'iris_model.pkl')
 # %%
-#Register the model in Azure ML
-ws = Workspace.from_config(path = "./config.json")
-model = Model.register(workspace=ws, model_path="iris_model.pkl", model_name="iris_model")
-# %%
-#Deploy model
-inference_config = InferenceConfig(entry_script='score.py', environment=Environment.from_conda_specification(name='iris-env', file_path='environment.yml'))
-aci_config = AciWebservice.deploy_configuration(cpu_cores=1, memory_gb=1)
+# Enter details of your Azure Machine Learning workspace
+subscription_id = "0f33db52-3637-4aba-8a83-fc6c80c5b8b9"
+resource_group = "Henrique_Personal"
+workspace = "Henrique_Personal"
 
-service = Model.deploy(workspace=ws, name='iris-service', models=[model], inference_config=inference_config, deployment_config=aci_config)
-service.wait_for_deployment(show_output=True)
-
+# get a handle to the workspace
+ml_client = MLClient(
+    DefaultAzureCredential(), subscription_id, resource_group, workspace
+)
 
 # %%
-#Delete service
-from azureml.core import Workspace
-from azureml.core.webservice import Webservice
+# Define an endpoint name
+import datetime
+endpoint_name = "endpt-" + datetime.datetime.now().strftime("%m%d%H%M%f")
+# create an online endpoint
+endpoint = ManagedOnlineEndpoint(
+    name = endpoint_name, 
+    description="this is a sample endpoint",
+    auth_mode="key"
+)
 
-# Connect to your Azure ML workspace
-ws = Workspace.from_config()
+# %%
+model = Model(path='iris_model.pkl')
+env = Environment(
+    conda_file="environment.yaml",
+    image="mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu20.04:latest",
+)
 
-# Get the existing service by name
-service_name = 'iris-service'
-service = Webservice(name=service_name, workspace=ws)
+# %%
+blue_deployment = ManagedOnlineDeployment(
+    name="blue",
+    endpoint_name=endpoint_name,
+    model=model,
+    environment=env,
+    code_configuration=CodeConfiguration(
+        code=".", scoring_script="score.py"
+    ),
+    instance_type="Standard_DS3_v2",
+    instance_count=1,
+)
+# %%
+#Register the model
+from azure.ai.ml.entities import Model
+from azure.ai.ml.constants import AssetTypes
 
-# Delete the service
-service.delete()
-print(f"Service {service_name} deleted successfully.")
+file_model = Model(
+    path="iris_model.pkl",
+    type=AssetTypes.CUSTOM_MODEL,
+    name="iris_model",
+    description="Model created from local file.",
+)
+ml_client.models.create_or_update(file_model)
+
+# %%
+#Register the environment
+from azure.ai.ml.entities import Environment
+
+env_docker_conda = Environment(
+    image="mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu20.04",
+    conda_file="environment.yaml",
+    name="my-env",
+    description="Environment created from a Docker image plus Conda environment.",
+)
+ml_client.environments.create_or_update(env_docker_conda)
+# %%
+#Create the endpoint
+ml_client.online_endpoints.begin_create_or_update(endpoint)
+
+# %%
+#Create the deployment
+blue_deployment_with_registered_assets = ManagedOnlineDeployment(
+    name="blue",
+    endpoint_name=endpoint_name,
+    model=model,
+    environment=env_docker_conda,
+    code_configuration=CodeConfiguration(
+        code=".", scoring_script="score.py"
+    ),
+    instance_type="Standard_DS2_v2",
+    instance_count=1,
+)
+# %%
+ml_client.online_deployments.begin_create_or_update(blue_deployment_with_registered_assets)
 # %%

@@ -1,4 +1,4 @@
-name: iris-env
+name: my-env
 dependencies:
   - python=3.12
   - scikit-learn
